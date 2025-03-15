@@ -11,22 +11,44 @@ builder.Services.AddSwaggerGen(c =>
 {
   c.SwaggerDoc("v1", new OpenApiInfo { Title = "Pizzas API", Description = "Pizza pizza", Version = "v1" });
 });
-var app = builder.Build();
-app.UseSwagger();
-app.UseSwaggerUI(c =>
+// 1) define a unique string
+string MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+
+// 2) define allowed domains, in this case "http://example.com" and "*" = all
+//    domains, for testing purposes only.
+builder.Services.AddCors(options =>
 {
-  c.SwaggerEndpoint("/swagger/v1/swagger.json", "Pizza API V1");
+    options.AddPolicy(name: MyAllowSpecificOrigins,
+      builder =>
+      {
+          builder.WithOrigins(
+            "http://example.com", "*");
+      });
 });
+
+var app = builder.Build();
+if (app.Environment.IsDevelopment())
+{
+  app.UseSwagger();
+  app.UseSwaggerUI(c =>
+  {
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Pizzas API V1");
+  });
+}
+
+
+
+// 3) use the capability
+app.UseCors(MyAllowSpecificOrigins);
 
 app.MapGet("/", () => "Hello World!");
 
-app.MapGet("/pizzas", async (PizzaDb db) => await db.Pizzas.ToListAsync());
+app.MapGet("/pizzas", async(PizzaDb db) => await db.Pizzas.ToListAsync());
 
-app.MapPost("/pizzas", async (PizzaDb db, Pizza pizza) =>
-{
-  await db.Pizzas.AddAsync(pizza);
-  await db.SaveChangesAsync();
-  return Results.Created($"/pizza/{pizza.Id}", pizza);
+app.MapPost("/pizzas", async(PizzaDb db, Pizza pizza) => {
+    await db.Pizzas.AddAsync(pizza);
+    await db.SaveChangesAsync();
+    return Results.Created($"/pizzas/{pizza.Id}", pizza);
 });
 
 app.MapPut("/pizzas/{id}", async (PizzaDb db, Pizza updatePizza, int id) =>
@@ -41,12 +63,12 @@ app.MapPut("/pizzas/{id}", async (PizzaDb db, Pizza updatePizza, int id) =>
 
 app.MapDelete("/pizzas/{id}", async (PizzaDb db, int id) =>
 {
-  var todo = await db.Pizzas.FindAsync(id);
-  if (todo is null)
+  var pizza = await db.Pizzas.FindAsync(id);
+  if (pizza is null)
   {
     return Results.NotFound();
   }
-  db.Pizzas.Remove(todo);
+  db.Pizzas.Remove(pizza);
   await db.SaveChangesAsync();
   return Results.Ok();
 });
